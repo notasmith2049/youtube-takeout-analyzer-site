@@ -151,7 +151,11 @@ function processViews(views) {
 function getTopChannels(digest, limit = 10) {
   const channels = [...digest.channelByUrl.values()];
   channels.sort((a, b) => b.views - a.views);
-  return channels.slice(0, limit).map(c => ({ name: c.name, url: c.url, views: c.views }));
+  return channels.slice(0, limit).map(c => ({
+    name: c.name,
+    url: c.url,
+    views: c.views,
+  }));
 }
 
 function getTopVideos(digest, limit = 50) {
@@ -183,6 +187,45 @@ function getChannelProgression(digest, topK = 10) {
     channels,
     rows: months.map(m => ({ month: m, ...monthMap[m] })),
   };
+}
+
+// ── Channel thumbnail fetcher ──────────────────────────────────────
+const { spawnSync } = require("child_process");
+
+function fetchChannelThumb(channelId) {
+  const urls = [
+    `https://www.youtube.com/channel/${channelId}`,
+    `https://www.youtube.com/channel/${channelId}/about`,
+  ];
+  for (const url of urls) {
+    try {
+      const result = spawnSync("python3", ["-c", `
+import subprocess, re, sys
+url = """${url}"""
+try:
+    r = subprocess.run(["curl", "-sL", url], capture_output=True, text=True, timeout=10)
+    html = r.stdout
+    m = re.search(r'<meta\\s+property="og:image"\\s+content="([^"]+)"', html, re.I)
+    if m:
+        print(m.group(1).replace("=s900-c", "=s48-c"))
+        sys.exit(0)
+    m = re.search(r'<link\\s+rel="image_src"\\s+href="([^"]+)"', html, re.I)
+    if m:
+        print(m.group(1).replace("=s900-c", "=s48-c"))
+        sys.exit(0)
+except: pass
+`], { timeout: 15000, encoding: "utf-8", maxBuffer: 1024 * 1024 * 2 });
+      if (result.status === 0 && result.stdout.trim()) {
+        return result.stdout.trim();
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return null;
+}
+
+function extractChannelId(url) {
+  const m = url.match(/\/channel\/([^/]+)/);
+  return m ? m[1] : null;
 }
 
 // ── HTML template ──────────────────────────────────────────────────
@@ -237,6 +280,11 @@ a:hover{color:var(--accent)}
 .ft p{color:var(--txt3);font-size:.75rem;letter-spacing:.05em}
 @media(max-width:900px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.title{font-size:1.3rem}}
 @media(max-width:480px){.cards{grid-template-columns:repeat(2,1fr)}.cv{font-size:1.5rem}}
+.tic{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.tic-item{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:.75rem;color:var(--txt2);transition:all .2s}
+.tic-item:hover{border-color:var(--border-g);color:var(--txt)}
+.tic-item img{width:20px;height:20px;border-radius:50%;object-fit:cover}
+.tic-item .tic-v{color:var(--accent);font-family:var(--font-d);font-weight:600;margin-left:2px}
 </style>
 </head>
 <body>
@@ -245,7 +293,7 @@ a:hover{color:var(--accent)}
 <main class="container">
 <section class="cards" id="cards"></section>
 <div class="grid">
-<section class="sec wide"><h2 class="st">// TOP CHANNELS</h2><div class="cc"><canvas id="ch"></canvas></div></section>
+<section class="sec wide"><h2 class="st">// TOP CHANNELS</h2><div class="tic" id="channelIcons"></div><div class="cc"><canvas id="ch"></canvas></div></section>
 <section class="sec"><h2 class="st">// VIEWS BY MONTH</h2><div class="cc"><canvas id="bm"></canvas></div></section>
 <section class="sec"><h2 class="st">// CHANNEL PROGRESSION</h2><div class="cc"><canvas id="pr"></canvas></div></section>
 </div>
@@ -258,36 +306,141 @@ Chart.defaults.color='#8888aa';Chart.defaults.borderColor='#2a2a3a';Chart.defaul
 const C=['#00e5ff','#ff6b35','#00ff88','#ffd700','#ff3355','#7c4dff','#ff9100','#00e676','#ea80fc','#40c4ff','#ff6f00','#69f0ae','#b388ff','#4dd0e1','#ffab40'];
 const gi=i=>C[i%C.length];let ci={};
 function cards(s){const m=[['totalViews','👁','Total Views'],['uniqueVideos','🎬','Unique Videos'],['uniqueChannels','📺','Channels'],['removedVideos','💀','Removed'],['videosWithoutChannel','🔒','Private']];document.getElementById('cards').innerHTML=m.map(([k,ic,lb])=>'<div class="card"><div class="ci">'+ic+'</div><div class="cv">'+((s[k]||0).toLocaleString())+'</div><div class="cl">'+lb+'</div></div>').join('')}
-function tc(d){const ctx=document.getElementById('ch').getContext('2d');if(ci.ch)ci.ch.destroy();ci.ch=new Chart(ctx,{type:'bar',data:{labels:d.map(c=>c.name),datasets:[{label:'Views',data:d.map(c=>c.views),backgroundColor:d.map((_,i)=>gi(i)+'66'),borderColor:d.map((_,i)=>gi(i)),borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},x:{grid:{display:false},ticks:{maxRotation:45,font:{size:10}}}}}})}
+
+// Channel icons strip
+function renderChannelIcons(channels){
+  const el=document.getElementById('channelIcons');
+  el.innerHTML=channels.map(c=>{
+    const img=c.icon?'<img src="'+c.icon+'" alt="" onerror="this.style.display=\'none\'">':'';
+    return '<div class="tic-item">'+img+'<span>'+e(c.name)+'</span><span class="tic-v">'+c.views+'</span></div>';
+  }).join('');
+}
+
+// Top Channels bar chart with icon annotations
+function tc(data){
+  const ctx=document.getElementById('ch').getContext('2d');
+  if(ci.ch)ci.ch.destroy();
+  
+  // Load images then draw
+  const images=[];
+  let loaded=0;
+  data.forEach((c,i)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>{loaded++;if(loaded===data.length)drawChart();};
+    img.onerror=()=>{loaded++;if(loaded===data.length)drawChart();};
+    img.src=c.icon||'';
+    images[i]=img;
+  });
+  if(data.length===0)loaded=data.length;
+  
+  function drawChart(){
+    ci.ch=new Chart(ctx,{type:'bar',
+    data:{labels:data.map(c=>''),datasets:[{label:'Views',data:data.map(c=>c.views),backgroundColor:data.map((_,i)=>gi(i)+'66'),borderColor:data.map((_,i)=>gi(i)),borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:function(tt){const d=data[tt.dataIndex];return d.name+': '+d.views+' views'}}}},
+      scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},
+              x:{grid:{display:false},ticks:{font:{size:0}}}},
+      // Draw channel icons and names after rendering
+      animation:{onComplete:function(){drawIcons(this,data,images)}}
+    }});
+  }
+  
+  function drawIcons(chart,chData,imgs){
+    const ctx=chart.ctx;
+    const meta=chart.getDatasetMeta(0);
+    const barW=meta.data[0]?.width||40;
+    const imgSize=Math.min(barW-4,28);
+    const fontSize=Math.max(9,Math.min(11,barW-2));
+    ctx.textAlign='center';
+    ctx.textBaseline='top';
+    ctx.font=fontSize+'px Inter,system-ui,sans-serif';
+    chData.forEach((c,i)=>{
+      const bar=meta.data[i];
+      if(!bar)return;
+      const x=bar.x;
+      const y=bar.y;
+      // Draw image above bar
+      if(imgs[i]&&imgs[i].complete&&imgs[i].naturalWidth>0){
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x,y-imgSize/2-4,imgSize/2,0,Math.PI*2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(imgs[i],x-imgSize/2,y-imgSize-4,imgSize,imgSize);
+        ctx.restore();
+        // Name below image
+        ctx.fillStyle='#8888aa';
+        ctx.fillText(truncate(c.name,12),x,y-2);
+      } else {
+        // Fallback: colored circle with initial
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x,y-imgSize/2-4,imgSize/2,0,Math.PI*2);
+        ctx.fillStyle=gi(i)+'44';
+        ctx.fill();
+        ctx.fillStyle=gi(i);
+        ctx.font='bold '+(imgSize*0.6)+'px Inter,system-ui,sans-serif';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText(c.name.charAt(0).toUpperCase(),x,y-imgSize/2-4);
+        ctx.restore();
+        ctx.fillStyle='#8888aa';
+        ctx.font=fontSize+'px Inter,system-ui,sans-serif';
+        ctx.fillText(truncate(c.name,12),x,y-2);
+      }
+    });
+  }
+  
+  function truncate(s,n){return s.length>n?s.slice(0,n-1)+'…':s}
+  
+  if(loaded===data.length)drawChart();
+}
+
 function bm(d){const ctx=document.getElementById('bm').getContext('2d');if(ci.bm)ci.bm.destroy();ci.bm=new Chart(ctx,{type:'line',data:{labels:d.map(x=>x.month),datasets:[{label:'Views',data:d.map(x=>x.count),borderColor:'#00e5ff',backgroundColor:'#00e5ff22',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#00e5ff',pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},x:{grid:{display:false},ticks:{maxTicksLimit:15,font:{size:9}}}},interaction:{intersect:false,mode:'index'}}})}
 function pr(d){const ctx=document.getElementById('pr').getContext('2d');if(ci.pr)ci.pr.destroy();ci.pr=new Chart(ctx,{type:'line',data:{labels:d.rows.map(r=>r.month),datasets:d.channels.map((ch,i)=>({label:ch,data:d.rows.map(r=>r[ch]||0),borderColor:gi(i),backgroundColor:gi(i)+'22',fill:false,tension:.3,pointRadius:2,pointHoverRadius:5}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:12,font:{size:10},color:'#8888aa'}}},scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},x:{grid:{display:false},ticks:{maxTicksLimit:12,font:{size:9}}}},interaction:{intersect:false,mode:'index'}}})}
 function tv(d){document.querySelector('#tv tbody').innerHTML=d.map((v,i)=>'<tr><td>'+(i+1)+'</td><td><a href="'+(v.url||'#')+'" target="_blank">'+e(v.name)+'</a></td><td>'+e(v.channel)+'</td><td>'+v.views+'</td></tr>').join('')}
 function e(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
-cards(DATA.summary);tc(DATA.topChannels);bm(DATA.byMonth);pr(DATA.channelProgression);tv(DATA.topVideos);
+
+cards(DATA.summary);
+renderChannelIcons(DATA.topChannels);
+tc(DATA.topChannels);
+bm(DATA.byMonth);
+pr(DATA.channelProgression);
+tv(DATA.topVideos);
 </script>
 </body>
 </html>`;
 }
 
 // ── Main ───────────────────────────────────────────────────────────
-(function() {
+(async function() {
   const inputPath = path.resolve(WATCH_HISTORY_INPUT);
   if (!fs.existsSync(inputPath)) {
     console.error("❌ Takeout data not found at:", inputPath);
-    console.error("   Place your YouTube Takeout watch-history.html in:");
-    console.error("   " + path.dirname(inputPath));
     process.exit(1);
   }
 
   console.log("📂 Reading:", inputPath);
   const views = parseWatchHistory(inputPath);
-  console.log(`📊 Parsed ${views.length} entries`);
-
   const digest = processViews(views);
-  console.log(`   • ${digest.totalViewsCount} total views`);
-  console.log(`   • ${digest.videoByUrl.size} unique videos`);
-  console.log(`   • ${digest.channelByUrl.size} channels`);
-  console.log(`   • ${digest.removedVideoCount} removed, ${digest.videosWithoutChannel} private`);
+  console.log(`📊 ${digest.totalViewsCount} views, ${digest.videoByUrl.size} unique videos, ${digest.channelByUrl.size} channels`);
+
+  const topChannels = getTopChannels(digest, TOP_K);
+
+  // Fetch channel thumbnails
+  console.log("\n🔍 Fetching channel thumbnails...");
+  for (const ch of topChannels) {
+    const cid = extractChannelId(ch.url);
+    if (cid) {
+      const thumb = fetchChannelThumb(cid);
+      ch.icon = thumb;
+      console.log(`   ${ch.name.padEnd(20)} ${thumb ? "✅" : "❌"}`);
+    } else {
+      console.log(`   ${ch.name.padEnd(20)} ⚠️ no channel ID`);
+    }
+  }
 
   const data = {
     summary: {
@@ -297,7 +450,7 @@ cards(DATA.summary);tc(DATA.topChannels);bm(DATA.byMonth);pr(DATA.channelProgres
       removedVideos: digest.removedVideoCount,
       videosWithoutChannel: digest.videosWithoutChannel,
     },
-    topChannels: getTopChannels(digest, TOP_K),
+    topChannels,
     topVideos: getTopVideos(digest, TOP_VIDEOS_LIMIT),
     byMonth: getViewsByMonth(digest),
     channelProgression: getChannelProgression(digest, TOP_K),
@@ -308,5 +461,4 @@ cards(DATA.summary);tc(DATA.topChannels);bm(DATA.byMonth);pr(DATA.channelProgres
   fs.writeFileSync(outPath, html);
   console.log(`\n✅ Dashboard generated: ${outPath}`);
   console.log(`   Size: ${(html.length / 1024).toFixed(1)} KB`);
-  console.log("   Open in browser or deploy to GitHub Pages!");
 })();
