@@ -252,6 +252,7 @@ body{font-family:var(--font-b);background:var(--bg);color:var(--txt);min-height:
 .hc{display:flex;flex-direction:column;gap:4px}
 .title{font-family:var(--font-d);font-size:1.75rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase;background:linear-gradient(135deg,var(--accent),var(--txt));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .sub{font-family:var(--font-d);font-size:.75rem;color:var(--txt3);letter-spacing:.2em}
+.dr{font-family:var(--font-d);font-size:.65rem;color:var(--accent);letter-spacing:.15em;margin-top:6px;opacity:.8}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:32px 0}
 .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px 20px;text-align:center;transition:all .3s ease;position:relative;overflow:hidden}
 .card::before{content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .3s}
@@ -285,7 +286,7 @@ a:hover{color:var(--accent)}
 </head>
 <body>
 <div class="scanline"></div>
-<header class="header"><div class="container"><div class="hc"><h1 class="title">YOUTUBE TAKEOUT ANALYZER</h1><p class="sub">// STATIC DASHBOARD</p></div></div></header>
+<header class="header"><div class="container"><div class="hc"><h1 class="title">YOUTUBE TAKEOUT ANALYZER</h1><p class="sub">// STATIC DASHBOARD</p><p class="dr">📅 ${data.dateRange.from} — ${data.dateRange.to}</p></div></div></header>
 <main class="container">
 <section class="cards" id="cards"></section>
 <div class="grid">
@@ -405,6 +406,12 @@ tv(DATA.topVideos);
     }
   }
 
+  const byMonth = getViewsByMonth(digest);
+  const dateRange = {
+    from: byMonth[0]?.month ? new Date(byMonth[0].month).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "N/A",
+    to: byMonth[byMonth.length - 1]?.month ? new Date(byMonth[byMonth.length - 1].month).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "N/A",
+  };
+
   const data = {
     summary: {
       totalViews: digest.totalViewsCount,
@@ -413,6 +420,7 @@ tv(DATA.topVideos);
       removedVideos: digest.removedVideoCount,
       videosWithoutChannel: digest.videosWithoutChannel,
     },
+    dateRange,
     topChannels,
     topVideos: getTopVideos(digest, TOP_VIDEOS_LIMIT),
     byMonth: getViewsByMonth(digest),
