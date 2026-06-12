@@ -1,0 +1,12 @@
+{
+  "name": "youtube-takeout-analyzer-site",
+  "version": "1.0.0",
+  "description": "Static dashboard for YouTube Takeout analysis",
+  "scripts": {
+    "build": "node generate-static-site.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "moment": "^2.30.1"
+  }
+}

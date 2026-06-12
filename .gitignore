@@ -1,0 +1,9 @@
+node_modules/
+Takeout/
+watch-history.digest
+watch-history.sha1
+watch-history-cache.json
+watch-later.json
+watch-later.sha1
+api.key
+*.csv
