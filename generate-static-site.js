@@ -280,11 +280,7 @@ a:hover{color:var(--accent)}
 .ft p{color:var(--txt3);font-size:.75rem;letter-spacing:.05em}
 @media(max-width:900px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.title{font-size:1.3rem}}
 @media(max-width:480px){.cards{grid-template-columns:repeat(2,1fr)}.cv{font-size:1.5rem}}
-.tic{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
-.tic-item{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:.75rem;color:var(--txt2);transition:all .2s}
-.tic-item:hover{border-color:var(--border-g);color:var(--txt)}
-.tic-item img{width:20px;height:20px;border-radius:50%;object-fit:cover}
-.tic-item .tic-v{color:var(--accent);font-family:var(--font-d);font-weight:600;margin-left:2px}
+
 </style>
 </head>
 <body>
@@ -293,7 +289,7 @@ a:hover{color:var(--accent)}
 <main class="container">
 <section class="cards" id="cards"></section>
 <div class="grid">
-<section class="sec wide"><h2 class="st">// TOP CHANNELS</h2><div class="tic" id="channelIcons"></div><div class="cc"><canvas id="ch"></canvas></div></section>
+<section class="sec wide"><h2 class="st">// TOP CHANNELS</h2><div class="cc"><canvas id="ch"></canvas></div></section>
 <section class="sec"><h2 class="st">// VIEWS BY MONTH</h2><div class="cc"><canvas id="bm"></canvas></div></section>
 <section class="sec"><h2 class="st">// CHANNEL PROGRESSION</h2><div class="cc"><canvas id="pr"></canvas></div></section>
 </div>
@@ -306,15 +302,6 @@ Chart.defaults.color='#8888aa';Chart.defaults.borderColor='#2a2a3a';Chart.defaul
 const C=['#00e5ff','#ff6b35','#00ff88','#ffd700','#ff3355','#7c4dff','#ff9100','#00e676','#ea80fc','#40c4ff','#ff6f00','#69f0ae','#b388ff','#4dd0e1','#ffab40'];
 const gi=i=>C[i%C.length];let ci={};
 function cards(s){const m=[['totalViews','👁','Total Views'],['uniqueVideos','🎬','Unique Videos'],['uniqueChannels','📺','Channels'],['removedVideos','💀','Removed'],['videosWithoutChannel','🔒','Private']];document.getElementById('cards').innerHTML=m.map(([k,ic,lb])=>'<div class="card"><div class="ci">'+ic+'</div><div class="cv">'+((s[k]||0).toLocaleString())+'</div><div class="cl">'+lb+'</div></div>').join('')}
-
-// Channel icons strip
-// Channel icons strip
-function renderChannelIcons(channels){
-  document.getElementById('channelIcons').innerHTML=channels.map(function(c){
-    var img=c.icon?'<img src="'+c.icon+'" alt="" onerror="this.remove()">':'';
-    return '<div class="tic-item">'+img+'<span>'+e(c.name)+'</span><span class="tic-v">'+c.views+'</span></div>';
-  }).join('');
-}
 
 // Top Channels bar chart
 function tc(data){
@@ -329,12 +316,13 @@ function tc(data){
     images[i]=img;
   });
   ci.ch=new Chart(ctx,{type:'bar',
-    data:{labels:data.map(function(){return '';}),datasets:[{label:'Views',data:data.map(function(c){return c.views;}),backgroundColor:data.map(function(_,i){return gi(i)+'66';}),borderColor:data.map(function(_,i){return gi(i);}),borderWidth:1,borderRadius:4}]},
+    data:{labels:data.map(function(c){return trunc(c.name,14);}),datasets:[{label:'Views',data:data.map(function(c){return c.views;}),backgroundColor:data.map(function(_,i){return gi(i)+'66';}),borderColor:data.map(function(_,i){return gi(i);}),borderWidth:1,borderRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},
         tooltip:{callbacks:{label:function(tt){var d=data[tt.dataIndex];return d.name+': '+d.views+' views';}}}},
       scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},
-              x:{grid:{display:false},ticks:{font:{size:0}}}},
+              x:{grid:{display:false},ticks:{font:{size:9,color:'#8888aa'},maxRotation:0,autoSkip:false}}},
+      layout:{padding:{top:30}},
       animation:{onComplete:function(){drawIcons(this,data,images)}}
   }});
   
@@ -344,9 +332,6 @@ function tc(data){
     if(!meta||!meta.data||!meta.data.length)return;
     var barW=meta.data[0].width||40;
     var imgSize=Math.min(barW-4,28);
-    ctx.textAlign='center';
-    ctx.textBaseline='bottom';
-    ctx.font='bold '+(Math.max(9,Math.min(11,barW-2)))+'px Inter,system-ui,sans-serif';
     chData.forEach(function(c,i){
       var bar=meta.data[i];
       if(!bar)return;
@@ -359,8 +344,6 @@ function tc(data){
         ctx.clip();
         ctx.drawImage(img,x-imgSize/2,y-imgSize*1.5-6,imgSize,imgSize);
         ctx.restore();
-        ctx.fillStyle='#8888aa';
-        ctx.fillText(trunc(c.name,12),x,y-4);
       }else{
         ctx.save();
         ctx.beginPath();
@@ -373,10 +356,6 @@ function tc(data){
         ctx.textBaseline='middle';
         ctx.fillText(c.name.charAt(0).toUpperCase(),x,y-imgSize-6);
         ctx.restore();
-        ctx.fillStyle='#8888aa';
-        ctx.font='bold '+(Math.max(9,Math.min(11,barW-2)))+'px Inter,system-ui,sans-serif';
-        ctx.textBaseline='alphabetic';
-        ctx.fillText(trunc(c.name,12),x,y-4);
       }
     });
   }
@@ -389,7 +368,6 @@ function tv(d){document.querySelector('#tv tbody').innerHTML=d.map((v,i)=>'<tr><
 function e(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 
 cards(DATA.summary);
-renderChannelIcons(DATA.topChannels);
 tc(DATA.topChannels);
 bm(DATA.byMonth);
 pr(DATA.channelProgression);
