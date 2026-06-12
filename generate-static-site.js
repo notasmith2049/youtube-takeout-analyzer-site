@@ -308,94 +308,79 @@ const gi=i=>C[i%C.length];let ci={};
 function cards(s){const m=[['totalViews','👁','Total Views'],['uniqueVideos','🎬','Unique Videos'],['uniqueChannels','📺','Channels'],['removedVideos','💀','Removed'],['videosWithoutChannel','🔒','Private']];document.getElementById('cards').innerHTML=m.map(([k,ic,lb])=>'<div class="card"><div class="ci">'+ic+'</div><div class="cv">'+((s[k]||0).toLocaleString())+'</div><div class="cl">'+lb+'</div></div>').join('')}
 
 // Channel icons strip
+// Channel icons strip
 function renderChannelIcons(channels){
-  const el=document.getElementById('channelIcons');
-  el.innerHTML=channels.map(c=>{
-    const img=c.icon?'<img src="'+c.icon+'" alt="" onerror="this.style.display=\'none\'">':'';
+  document.getElementById('channelIcons').innerHTML=channels.map(function(c){
+    var img=c.icon?'<img src="'+c.icon+'" alt="" onerror="this.style.display=\'none\'">':'';
     return '<div class="tic-item">'+img+'<span>'+e(c.name)+'</span><span class="tic-v">'+c.views+'</span></div>';
   }).join('');
 }
 
-// Top Channels bar chart with icon annotations
+// Top Channels bar chart
 function tc(data){
-  const ctx=document.getElementById('ch').getContext('2d');
+  var ctx=document.getElementById('ch').getContext('2d');
   if(ci.ch)ci.ch.destroy();
-  
-  // Load images then draw
-  const images=[];
-  let loaded=0;
-  data.forEach((c,i)=>{
-    const img=new Image();
+  // Preload images
+  var images=[];
+  data.forEach(function(c,i){
+    var img=new Image();
     img.crossOrigin='anonymous';
-    img.onload=()=>{loaded++;if(loaded===data.length)drawChart();};
-    img.onerror=()=>{loaded++;if(loaded===data.length)drawChart();};
     img.src=c.icon||'';
     images[i]=img;
   });
-  if(data.length===0)loaded=data.length;
-  
-  function drawChart(){
-    ci.ch=new Chart(ctx,{type:'bar',
-    data:{labels:data.map(c=>''),datasets:[{label:'Views',data:data.map(c=>c.views),backgroundColor:data.map((_,i)=>gi(i)+'66'),borderColor:data.map((_,i)=>gi(i)),borderWidth:1,borderRadius:4}]},
+  ci.ch=new Chart(ctx,{type:'bar',
+    data:{labels:data.map(function(){return '';}),datasets:[{label:'Views',data:data.map(function(c){return c.views;}),backgroundColor:data.map(function(_,i){return gi(i)+'66';}),borderColor:data.map(function(_,i){return gi(i);}),borderWidth:1,borderRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},
-        tooltip:{callbacks:{label:function(tt){const d=data[tt.dataIndex];return d.name+': '+d.views+' views'}}}},
+        tooltip:{callbacks:{label:function(tt){var d=data[tt.dataIndex];return d.name+': '+d.views+' views';}}}},
       scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},
               x:{grid:{display:false},ticks:{font:{size:0}}}},
-      // Draw channel icons and names after rendering
       animation:{onComplete:function(){drawIcons(this,data,images)}}
-    }});
-  }
+  }});
   
   function drawIcons(chart,chData,imgs){
-    const ctx=chart.ctx;
-    const meta=chart.getDatasetMeta(0);
-    const barW=meta.data[0]?.width||40;
-    const imgSize=Math.min(barW-4,28);
-    const fontSize=Math.max(9,Math.min(11,barW-2));
+    var ctx=chart.ctx;
+    var meta=chart.getDatasetMeta(0);
+    if(!meta||!meta.data||!meta.data.length)return;
+    var barW=meta.data[0].width||40;
+    var imgSize=Math.min(barW-4,28);
     ctx.textAlign='center';
-    ctx.textBaseline='top';
-    ctx.font=fontSize+'px Inter,system-ui,sans-serif';
-    chData.forEach((c,i)=>{
-      const bar=meta.data[i];
+    ctx.textBaseline='bottom';
+    ctx.font='bold '+(Math.max(9,Math.min(11,barW-2)))+'px Inter,system-ui,sans-serif';
+    chData.forEach(function(c,i){
+      var bar=meta.data[i];
       if(!bar)return;
-      const x=bar.x;
-      const y=bar.y;
-      // Draw image above bar
-      if(imgs[i]&&imgs[i].complete&&imgs[i].naturalWidth>0){
+      var x=bar.x,y=bar.y;
+      var img=imgs[i];
+      if(img&&img.complete&&img.naturalWidth>0){
         ctx.save();
         ctx.beginPath();
-        ctx.arc(x,y-imgSize/2-4,imgSize/2,0,Math.PI*2);
-        ctx.closePath();
+        ctx.arc(x,y-imgSize-6,imgSize/2,0,Math.PI*2);
         ctx.clip();
-        ctx.drawImage(imgs[i],x-imgSize/2,y-imgSize-4,imgSize,imgSize);
+        ctx.drawImage(img,x-imgSize/2,y-imgSize*1.5-6,imgSize,imgSize);
         ctx.restore();
-        // Name below image
         ctx.fillStyle='#8888aa';
-        ctx.fillText(truncate(c.name,12),x,y-2);
-      } else {
-        // Fallback: colored circle with initial
+        ctx.fillText(trunc(c.name,12),x,y-4);
+      }else{
         ctx.save();
         ctx.beginPath();
-        ctx.arc(x,y-imgSize/2-4,imgSize/2,0,Math.PI*2);
+        ctx.arc(x,y-imgSize-6,imgSize/2,0,Math.PI*2);
         ctx.fillStyle=gi(i)+'44';
         ctx.fill();
         ctx.fillStyle=gi(i);
-        ctx.font='bold '+(imgSize*0.6)+'px Inter,system-ui,sans-serif';
+        ctx.font='bold '+(imgSize*0.55)+'px Inter,system-ui,sans-serif';
         ctx.textAlign='center';
         ctx.textBaseline='middle';
-        ctx.fillText(c.name.charAt(0).toUpperCase(),x,y-imgSize/2-4);
+        ctx.fillText(c.name.charAt(0).toUpperCase(),x,y-imgSize-6);
         ctx.restore();
         ctx.fillStyle='#8888aa';
-        ctx.font=fontSize+'px Inter,system-ui,sans-serif';
-        ctx.fillText(truncate(c.name,12),x,y-2);
+        ctx.font='bold '+(Math.max(9,Math.min(11,barW-2)))+'px Inter,system-ui,sans-serif';
+        ctx.textBaseline='alphabetic';
+        ctx.fillText(trunc(c.name,12),x,y-4);
       }
     });
   }
-  
-  function truncate(s,n){return s.length>n?s.slice(0,n-1)+'…':s}
-  
-  if(loaded===data.length)drawChart();
+  function trunc(s,n){return s.length>n?s.slice(0,n-1)+'…':s}
 }
 
 function bm(d){const ctx=document.getElementById('bm').getContext('2d');if(ci.bm)ci.bm.destroy();ci.bm=new Chart(ctx,{type:'line',data:{labels:d.map(x=>x.month),datasets:[{label:'Views',data:d.map(x=>x.count),borderColor:'#00e5ff',backgroundColor:'#00e5ff22',fill:true,tension:.3,pointRadius:3,pointBackgroundColor:'#00e5ff',pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#2a2a3a44'}},x:{grid:{display:false},ticks:{maxTicksLimit:15,font:{size:9}}}},interaction:{intersect:false,mode:'index'}}})}
