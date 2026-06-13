@@ -78,7 +78,7 @@ function cards(s){const m=[['totalViews','👁','Total Views'],['uniqueVideos','
 function renderChannelIcons(channels){
   const el=document.getElementById('channelIcons');
   el.innerHTML=channels.map(c=>{
-    const img=c.icon?'<img src="'+c.icon+'" alt="" onerror="this.style.display='none'">':'';
+    const img=c.icon?'<img src="'+c.icon+'" alt="" onerror="this.style.display=`none`">':'';
     return '<div class="tic-item">'+img+'<span>'+e(c.name)+'</span><span class="tic-v">'+c.views+'</span></div>';
   }).join('');
 }
